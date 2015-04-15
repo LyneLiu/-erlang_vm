@@ -1,2 +1,2 @@
-# -erlang_vm
+# erlang_vm
 read about erlang vm
