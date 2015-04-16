@@ -1098,8 +1098,6 @@ init_emulator(void)
  * The first call performs some initialisation, including exporting
  * the instructions' C labels to the loader.
  * The second call starts execution of BEAM code. This call never returns.
- * 线程入口函数，实现VM调度
- * （包括指令执行的相关代码）
  */
 void process_main(void)
 {
@@ -1825,8 +1823,6 @@ void process_main(void)
     /*
      * Pick up the next message and place it in x(0).
      * If no message, jump to a wait or wait_timeout instruction.
-     * 从信箱取出一条信息放到x(0)寄存器；
-     * 没有消息则跳到wait或者wait_timeout指令
      */
  OpCase(i_loop_rec_fr):
  {
@@ -1836,15 +1832,14 @@ void process_main(void)
  loop_rec__:
 
      PROCESS_MAIN_CHK_LOCKS(c_p);
-     /*获取 “current” message*/
+
      msgp = PEEK_MESSAGE(c_p);
 
-     if (!msgp) { //如果消息不存在，尝试从SMP下的public queue获取信息
+     if (!msgp) {
 #ifdef ERTS_SMP
 	 erts_smp_proc_lock(c_p, ERTS_PROC_LOCKS_MSG_RECEIVE);
 	 /* Make sure messages wont pass exit signals... */
 	 if (ERTS_PROC_PENDING_EXIT(c_p)) {
-    /*如果进程准备退出，则不处理消息*/
 	     erts_smp_proc_unlock(c_p, ERTS_PROC_LOCKS_MSG_RECEIVE);
 	     SWAPOUT;
 	     goto do_schedule; /* Will be rescheduled for exit */
@@ -1856,12 +1851,10 @@ void process_main(void)
 	 else
 #endif
 	 {
-       /*信箱没有消息则跳到wait或者wait_timeout指令（实际上就是执行下一条指令）*/
 	     SET_I((BeamInstr *) Arg(0));
 	     Goto(*I);		/* Jump to a wait or wait_timeout instruction */
 	 }
      }
-     /*解析分布式消息，把消息附加的数据复制到进程私有堆*/
      ErtsMoveMsgAttachmentIntoProc(msgp, c_p, E, HTOP, FCALLS,
 				   {
 				       SWAPOUT;
@@ -1878,17 +1871,16 @@ void process_main(void)
 	 /*
 	  * A corrupt distribution message that we weren't able to decode;
 	  * remove it...
-    * 如果消息损坏就移除（出现这种情况是分布式消息解码错误）
 	  */
 	 ASSERT(!msgp->data.attached);
          /* TODO: Add DTrace probe for this bad message situation? */
-	 UNLINK_MESSAGE(c_p, msgp);/*移除消息，侧重将“当前”位置指向下一条消息*/
-	 free_message(msgp);/*销毁消息*/
-	 goto loop_rec__;/*跳到上面继续*/
+	 UNLINK_MESSAGE(c_p, msgp);
+	 free_message(msgp);
+	 goto loop_rec__;
      }
-     PreFetch(1, next);/*标记下一条指令位置*/
+     PreFetch(1, next);
      r(0) = ERL_MESSAGE_TERM(msgp);
-     NextPF(1, next);/*执行下一条指令*/
+     NextPF(1, next);
  }
 
  /*
@@ -1901,7 +1893,6 @@ void process_main(void)
      PROCESS_MAIN_CHK_LOCKS(c_p);
 
      PreFetch(0, next);
-     /*去除当前的消息*/
      msgp = PEEK_MESSAGE(c_p);
 
      if (ERTS_PROC_GET_SAVED_CALLS_BUF(c_p)) {
@@ -1937,7 +1928,6 @@ void process_main(void)
 	 DT_UTAG_FLAGS(c_p) &= ~DT_UTAG_SPREADING;
 #endif
      } else if (ERL_MESSAGE_TOKEN(msgp) != am_undefined) {
-      /*追踪调试内容*/
 	 Eterm msg;
 	 SEQ_TRACE_TOKEN(c_p) = ERL_MESSAGE_TOKEN(msgp);
 #ifdef USE_VM_PROBES
@@ -1991,17 +1981,15 @@ void process_main(void)
                  c_p->msg.len - 1, tok_label, tok_lastcnt, tok_serial);
      }
 #endif
-     /*移除消息，侧重队列长度-1*/
      UNLINK_MESSAGE(c_p, msgp);
-     /*重置当前消息位置，只想队列第一条消息*/
      JOIN_MESSAGE(c_p);
      CANCEL_TIMER(c_p);
-     free_message(msgp);/*销毁消息*/
+     free_message(msgp);
 
      ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
      PROCESS_MAIN_CHK_LOCKS(c_p);
 
-     NextPF(0, next);/*执行下一条消息*/
+     NextPF(0, next);
  }
 
     /*
