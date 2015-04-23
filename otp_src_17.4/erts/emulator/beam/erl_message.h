@@ -20,6 +20,7 @@
 #ifndef __ERL_MESSAGE_H__
 #define __ERL_MESSAGE_H__
 
+/**/
 struct proc_bin;
 struct external_thing_;
 
@@ -69,7 +70,7 @@ struct erl_heap_fragment {
 };
 
 typedef struct erl_mesg {
-    struct erl_mesg* next;	/* Next message */
+    struct erl_mesg* next;	/* 下一条 message 指针 */
     union {
 	ErtsDistExternal *dist_ext;
 	ErlHeapFragment *heap_frag;

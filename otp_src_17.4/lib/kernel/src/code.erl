@@ -127,6 +127,7 @@ module_md5(_) ->
 objfile_extension() ->
     init:objfile_extension().
 
+%% 加载.beam字节码到VM
 -spec load_file(Module) -> load_ret() when
       Module :: module().
 load_file(Mod) when is_atom(Mod) ->

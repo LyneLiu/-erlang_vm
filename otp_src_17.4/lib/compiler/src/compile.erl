@@ -125,6 +125,10 @@ noenv_output_generated(Opts) ->
 -define(pass(P), {P,fun P/1}).
 -define(pass(P,T), {P,fun T/1,fun P/1}).
 
+%% 在shell中默认情况下的执行及结果
+%% 1>os:getenv("ERL_COMPILE_OPTIONS").
+%% false
+
 env_default_opts() ->
     Key = "ERL_COMPILER_OPTIONS",
     case os:getenv(Key) of
@@ -145,6 +149,7 @@ env_default_opts() ->
 	    end
     end.
 
+%% 编译过程中创建monitor进程监控编译过程的执行结果
 do_compile(Input, Opts0) ->
     Opts = expand_opts(Opts0),
     {Pid,Ref} =
@@ -267,7 +272,7 @@ format_error_reason(Reason) ->
                   encoding=none :: none | epp:source_encoding(),
 		  errors=[],
 		  warnings=[]}).
-
+ 
 internal({forms,Forms}, Opts0) ->
     {_,Ps} = passes(forms, Opts0),
     Source = proplists:get_value(source, Opts0, ""),

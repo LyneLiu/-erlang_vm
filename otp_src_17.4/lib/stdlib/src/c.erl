@@ -69,6 +69,12 @@ help() ->
 		   "y(File)    -- generate a Yecc parser\n">>).
 
 %% c(FileName)
+%%
+%% 经历三个过程：
+%% compile:file(Module),    %%编译erl成beam文件
+%% code:purge(Module),	    %%清理模块（同时杀掉进程）
+%% code:load_file(Module).  加载beam到VM
+%%
 %%  Compile a file/module.
 
 -spec c(File) -> {'ok', Module} | 'error' when
