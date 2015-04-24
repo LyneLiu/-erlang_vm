@@ -528,7 +528,9 @@ extern int count_instructions;
     ASSERT(VALID_INSTR(*I));   \
     Goto(*I)
 
+/*取下一条指令*/
 #define PreFetch(N, Dst) do { Dst = (BeamInstr *) *(I + N + 1); } while (0)
+/*执行下一条指令*/
 #define NextPF(N, Dst)         \
     I += N + 1;                \
     ASSERT(VALID_INSTR(Dst));  \
@@ -2776,6 +2778,7 @@ get_map_elements_fail:
      */
  OpCase(call_bif_e):
     {
+  /*获取BIF函数的函数地址*/
 	Eterm (*bf)(Process*, Eterm*, BeamInstr*) = GET_BIF_ADDRESS(Arg(0));
 	Eterm result;
 	BeamInstr *next;
@@ -2788,6 +2791,7 @@ get_map_elements_fail:
 	PreFetch(1, next);
 	ASSERT(!ERTS_PROC_IS_EXITING(c_p));
 	reg[0] = r(0);
+  /*执行BIF函数*/
 	result = (*bf)(c_p, reg, I);
 	ASSERT(!ERTS_PROC_IS_EXITING(c_p) || is_non_value(result));
 	ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
@@ -2802,6 +2806,7 @@ get_map_elements_fail:
 	HTOP = HEAP_TOP(c_p);
 	FCALLS = c_p->fcalls;
 	if (is_value(result)) {
+      /*调用BIF的指令操作完成后会进入emulator_loop状态*/
 	    r(0) = result;
 	    CHECK_TERM(r(0));
 	    NextPF(1, next);

@@ -299,7 +299,8 @@ rehash() -> call(rehash).
 get_mode() -> call(get_mode).
 
 %%-----------------------------------------------------------------
-
+%% 向code_server发送请求
+%% 关于beam文件的加载由code_server的进程负责
 call(Req) ->
     code_server:call(code_server, Req).
 

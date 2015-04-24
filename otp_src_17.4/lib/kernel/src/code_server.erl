@@ -19,6 +19,7 @@
 -module(code_server).
 
 %% This file holds the server part of the code_server.
+%% 该模块负责code_server进程的创建以及代码的管理
 
 -export([start_link/1,
 	 call/2,
@@ -151,6 +152,7 @@ call(Name, Req) ->
 reply(Pid, Res) ->
     Pid ! {?MODULE, Res}.
 
+%% code_server进程receive消息后的相应处理
 loop(#state{supervisor=Supervisor}=State0) ->
     receive 
 	{code_call, Pid, Req} ->
@@ -1244,6 +1246,7 @@ try_load_module(Mod, Dir, Caller, St) ->
 	    try_load_module(absname(FName), Mod, Binary, Caller, St)
     end.
 
+%% 所有的module的binary文件load都会经过这里？？？
 try_load_module(File, Mod, Bin, {From,_}=Caller, St0) ->
     M = to_atom(Mod),
     case pending_on_load(M, From, St0) of
@@ -1256,6 +1259,7 @@ try_load_module(File, Mod, Bin, {From,_}=Caller, St0) ->
 try_load_module_1(File, Mod, Bin, Caller, #state{moddb=Db}=St) ->
     case is_sticky(Mod, Db) of
 	true ->                         %% Sticky file reject the load
+									%% 自定义的module名称不能与sticky中module名称冲突
 	    error_msg("Can't load module that resides in sticky dir\n",[]),
 	    {reply,{error,sticky_directory},St};
 	false ->
@@ -1287,6 +1291,10 @@ load_native_code(Mod, Bin) ->
     %% loader modules, but the Erlang emulator might be hipe enabled.
     %% Therefore we must test for that the loader modules are available
     %% before trying to to load native code.
+
+    %% shell中测试下：
+    %% erlang:module_loaded(hipe_unified_loader).
+    %% true
     case erlang:module_loaded(hipe_unified_loader) of
 	false ->
 	    no_native;
@@ -1352,6 +1360,7 @@ load_file_1(Mod, Caller, #state{cache=Cache}=St0) ->
 	    try_load_module(Mod, Dir, Caller, St0)
     end.
 
+%% 主要调用erl_prim_loader模块的get_file函数
 mod_to_bin([Dir|Tail], Mod) ->
     File = filename:append(Dir, to_list(Mod) ++ objfile_extension()),
     case erl_prim_loader:get_file(File) of
@@ -1756,6 +1765,9 @@ info_msg(Format, Args) ->
     error_logger ! Msg,
     ok.
 
+%% shell中测试以下命令：
+%% init:objfile_extension().
+%% ".beam"
 objfile_extension() ->
     init:objfile_extension().
 

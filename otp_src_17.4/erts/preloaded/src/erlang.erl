@@ -1292,6 +1292,8 @@ ports() ->
 posixtime_to_universaltime(_P1) ->
     erlang:nif_error(undefined).
 
+%% beam文件转换为binary文件后调用prepare_loading
+%% 然后TRAP进erlang VM中
 %% prepare_loading/2
 -spec erlang:prepare_loading(Module, Code) -> PreparedCode | {error, Reason} when
       Module :: module(),
