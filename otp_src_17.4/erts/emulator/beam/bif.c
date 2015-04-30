@@ -1798,7 +1798,7 @@ ebif_bang_2(BIF_ALIST_2)
 #define SEND_AWAIT_RESULT	(-7)
 
 Sint do_send(Process *p, Eterm to, Eterm msg, int suspend, Eterm *refp);
-
+/*向远程节点发送消息*/
 static Sint remote_send(Process *p, DistEntry *dep,
 			Eterm to, Eterm full_to, Eterm msg, int suspend)
 {

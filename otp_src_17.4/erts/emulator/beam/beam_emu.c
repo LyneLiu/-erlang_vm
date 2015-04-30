@@ -244,11 +244,11 @@ void** beam_ops;
 #ifndef ERTS_SMP /* Not supported with smp emulator */
 extern int count_instructions;
 #endif
-
+/*swap换入*/
 #define SWAPIN             \
     HTOP = HEAP_TOP(c_p);  \
     E = c_p->stop
-
+/*swap换出*/
 #define SWAPOUT            \
     HEAP_TOP(c_p) = HTOP;  \
     c_p->stop = E
@@ -439,9 +439,14 @@ extern int count_instructions;
 #define Init3(Y1, Y2, Y3) \
    do { make_blank(Y1); make_blank(Y2); make_blank(Y3); } while (0)
 
+/*make_fun2的实现，接受参数为Arg(0)，Arg(1)*/
 #define MakeFun(FunP, NumFree)					\
   do {								\
      SWAPOUT;							\
+     /* r(N)定义为x##N
+      * ## 是连接符号
+      * 即将REG_x0赋值到reg[0]中，reg[0]在GC会用到
+      */
      reg[0] = r(0);						\
      r(0) = new_fun(c_p, reg, (ErlFunEntry *) FunP, NumFree);	\
      SWAPIN;							\
@@ -6403,7 +6408,7 @@ apply_fun(Process* p, Eterm fun, Eterm args, Eterm* reg)
 }
 
 
-
+/*创建新的fun函数*/
 static Eterm
 new_fun(Process* p, Eterm* reg, ErlFunEntry* fe, int num_free)
 {
@@ -6411,17 +6416,21 @@ new_fun(Process* p, Eterm* reg, ErlFunEntry* fe, int num_free)
     ErlFunThing* funp;
     Eterm* hp;
     int i;
-
+    /*如果堆空间不足进行垃圾回收操作*/
     if (HEAP_LIMIT(p) - HEAP_TOP(p) <= needed) {
 	PROCESS_MAIN_CHK_LOCKS(p);
 	erts_garbage_collect(p, needed, reg, num_free);
 	ERTS_VERIFY_UNUSED_TEMP_ALLOC(p);
 	PROCESS_MAIN_CHK_LOCKS(p);
     }
+
     hp = p->htop;
     p->htop = hp + needed;
+
     funp = (ErlFunThing *) hp;
     hp = funp->env;
+    
+    /*创建reference值*/
     erts_refc_inc(&fe->refc, 2);
     funp->thing_word = HEADER_FUN;
     funp->next = MSO(p).first;

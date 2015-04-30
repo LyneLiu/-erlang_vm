@@ -244,6 +244,7 @@ typedef struct {
 
 /*
  * This structure contains all information about the module being loaded.
+ * 存储beam各个chunk的相关信息
  */  
 
 typedef struct LoaderState {
@@ -595,6 +596,7 @@ extern void check_allocated_block(Uint type, void *blk);
 #define CHKBLK(TYPE,BLK) /* nothing */
 #endif
 
+/*ERTS加载beam到vm中的实现*/
 Eterm
 erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 		     Eterm* modp, byte* code, Uint unloaded_size)
@@ -616,6 +618,7 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 
     CHKALLOC();
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
+    /*检查beam文件格式，生成相关信息*/
     if (!init_iff_file(stp, code, unloaded_size) ||
 	!scan_iff_file(stp, chunk_types, NUM_CHUNK_TYPES, NUM_MANDATORY) ||
 	!verify_chunks(stp)) {
@@ -624,6 +627,7 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 
     /*
      * Read the header for the code chunk.
+     * 读取代码快头部信息，检查版本支持，获取label和函数个数
      */
 
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
@@ -634,6 +638,7 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 
     /*
      * Initialize code area.
+     * 初始化代码信息
      */
     stp->code_buffer_size = 2048 + stp->num_functions;
     stp->code = (BeamInstr *) erts_alloc(ERTS_ALC_T_CODE,
@@ -651,6 +656,7 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 
     /*
      * Read the atom table.
+     * 读取原子表
      */
 
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
@@ -661,6 +667,7 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 
     /*
      * Read the import table.
+     * 读取导入函数
      */
 
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
@@ -671,6 +678,7 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 
     /*
      * Read the lambda (fun) table.
+     * 读取匿名函数
      */
 
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
@@ -683,6 +691,7 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 
     /*
      * Read the literal table.
+     * 读取数据表
      */
 
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
@@ -707,13 +716,14 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 
     /*
      * Load the code chunk.
+     * 加载代码块，生成label
      */
 
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
     stp->file_name = "code chunk";
     stp->file_p = stp->code_start;
     stp->file_left = stp->code_size;
-    if (!load_code(stp)) {
+    if (!load_code(stp)) { //加载代码
 	goto load_error;
     }
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
@@ -725,6 +735,7 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
     /*
      * Read and validate the export table.  (This must be done after
      * loading the code, because it contains labels.)
+     * 读取和确认导出函数
      */
     
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
@@ -1308,6 +1319,7 @@ load_import_table(LoaderState* stp)
     return 0;
 }
 
+/*生成导出函数*/
 static int
 read_export_table(LoaderState* stp)
 {
@@ -1323,6 +1335,12 @@ read_export_table(LoaderState* stp)
 	= (ExportEntry *) erts_alloc(ERTS_ALC_T_PREPARED_CODE,
 				     (stp->num_exps * sizeof(ExportEntry)));
 
+  /*  beam文件导出函数表的格式
+     &   4 bytes  'ExpT'  chunk ID
+     *   4 bytes  size  total chunk length
+     *   4 bytes  n number of entries
+     *   xx bytes ... Function entries (each 3 * 4 bytes): Function, Arity, Label
+   */
     for (i = 0; i < stp->num_exps; i++) {
 	Uint n;
 	Uint value;

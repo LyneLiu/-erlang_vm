@@ -2940,16 +2940,22 @@ done:
     return res;
 }
 
+/*erlang:fun_info/2函数的bif实现*/
 BIF_RETTYPE
 fun_info_2(BIF_ALIST_2)
 {
-    Process* p = BIF_P;
-    Eterm fun = BIF_ARG_1;
-    Eterm what = BIF_ARG_2;
+    Process* p = BIF_P;     //进程p
+    Eterm fun = BIF_ARG_1;  //第一个参数为函数名
+    Eterm what = BIF_ARG_2; //第二个参数为函数属性
     Eterm* hp;
     Eterm val;
 
+    /*当fun为函数时才会执行该操作*/
     if (is_fun(fun)) {
+    /*获取ErlFunThing值，怎么获取的？？？
+     *fun调用fun_val函数
+     *export调用export_val函数
+     */
 	ErlFunThing* funp = (ErlFunThing *) fun_val(fun);
 
 	switch (what) {
@@ -2967,22 +2973,27 @@ fun_info_2(BIF_ALIST_2)
 	    break;
 	case am_new_index:
 	    hp = HAlloc(p, 3);
+        /*export函数val未定义*/
 	    val = make_small(funp->fe->index);
 	    break;
 	case am_new_uniq:
+        /*export函数val未定义*/
 	    val = new_binary(p, funp->fe->uniq, 16);
 	    hp = HAlloc(p, 3);
 	    break;
 	case am_index:
 	    hp = HAlloc(p, 3);
+        /*export函数val未定义*/
 	    val = make_small(funp->fe->old_index);
 	    break;
 	case am_uniq:
 	    hp = HAlloc(p, 3);
+        /*export函数val未定义*/
 	    val = make_small(funp->fe->old_uniq);
 	    break;
 	case am_env:
 	    {
+        /*export函数val为NIL*/
 		Uint num_free = funp->num_free;
 		int i;
 
@@ -2995,6 +3006,7 @@ fun_info_2(BIF_ALIST_2)
 	    }
 	    break;
 	case am_refc:
+        /*export函数val未定义*/
 	    val = erts_make_integer(erts_smp_atomic_read_nob(&funp->fe->refc), p);
 	    hp = HAlloc(p, 3);
 	    break;
@@ -3010,7 +3022,8 @@ fun_info_2(BIF_ALIST_2)
 	    goto error;
 	}
     } else if (is_export(fun)) {
-	Export* exp = (Export *) ((UWord) (export_val(fun))[1]);
+    /*fun是导出函数的情况*/
+	Export* exp = (Export *) ((UWord) (export_val(fun))[1]); //export_val宏定义在erl_term.h中
 	switch (what) {
 	case am_type:
 	    hp = HAlloc(p, 3);
@@ -3022,6 +3035,7 @@ fun_info_2(BIF_ALIST_2)
 	    break;
 	case am_module:
 	    hp = HAlloc(p, 3);
+        /*code[0]:tagged atom for module*/
 	    val = exp->code[0];
 	    break;
 	case am_new_index:
@@ -3050,10 +3064,12 @@ fun_info_2(BIF_ALIST_2)
 	    break;
 	case am_arity:
 	    hp = HAlloc(p, 3);
+        /*code[2]:Arity (untagged integer)*/
 	    val = make_small(exp->code[2]);
 	    break;
 	case am_name:
 	    hp = HAlloc(p, 3);
+        /*code[1]:tagged atom for function*/
 	    val = exp->code[1];
 	    break;
 	default:

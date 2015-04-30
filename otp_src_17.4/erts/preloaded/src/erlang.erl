@@ -819,6 +819,7 @@ float_to_list(_Float) ->
 float_to_list(_Float, _Options) ->
     erlang:nif_error(undefined).
 
+%% 查看函数的Item属性信息
 %% fun_info/2
 -spec erlang:fun_info(Fun, Item) -> {Item, Info} when
       Fun :: function(),

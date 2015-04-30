@@ -227,6 +227,7 @@ extern BM_TIMER_T mmu;
 
 #define BM_NEW_TIMER(t) BM_TIMER_T t##_time = 0;
 #define BM_RESET_TIMER(t) t##_time = 0;
+/*用来记录代码段运行的系统时间*/
 #define BM_SWAP_TIMER(t1,t2) do { BM_STOP_TIMER(t1); BM_START_TIMER(t2); } while(0)
 #define BM_MMU_INIT() do {                                              \
     BM_TIMER_T gc = gc_time;                                            \

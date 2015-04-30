@@ -32,6 +32,7 @@
 
 /*
 ** Export entry
+* 导出函数的入口
 */
 
 typedef struct export

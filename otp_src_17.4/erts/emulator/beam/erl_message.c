@@ -995,6 +995,7 @@ erts_send_message(Process* sender,
 	    );
         BM_SWAP_TIMER(send,system);
     } else if (sender == receiver) {
+    /* 进程发送给自己*/
 	/* Drop message if receiver has a pending exit ... */
 #ifdef ERTS_SMP
 	ErtsProcLocks need_locks = (~(*receiver_locks)
@@ -1044,6 +1045,7 @@ erts_send_message(Process* sender,
 	}
         BM_SWAP_TIMER(send,system);
     } else {
+    /* 发送消息给别的进程*/
 	ErlOffHeap *ohp;
         Eterm *hp;
 	erts_aint32_t state;

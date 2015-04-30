@@ -24,6 +24,7 @@
 
 /*
  * Fun entry.
+ * 函数对象的入口指针？
  */
 
 typedef struct erl_fun_entry {
@@ -49,6 +50,7 @@ typedef struct erl_fun_entry {
  * This structure represents a 'fun' (lambda). It is stored on
  * process heaps. It has variable size depending on the size
  * of the environment.
+ * fun（函数对象），存储在进程堆中
  */
 
 typedef struct erl_fun_thing {
