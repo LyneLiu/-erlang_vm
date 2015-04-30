@@ -596,11 +596,20 @@ extern void check_allocated_block(Uint type, void *blk);
 #define CHKBLK(TYPE,BLK) /* nothing */
 #endif
 
-/*ERTS加载beam到vm中的实现*/
+/*ERTS加载beam到vm中的实现
+ *参数信息：
+ *LoaderState数据结构
+ *当前进程——c_p
+ *group_leader
+ *module名——modp
+ *二进制数据部分——code
+ *二进制数据大小——ubload_size
+ */
 Eterm
 erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 		     Eterm* modp, byte* code, Uint unloaded_size)
 {
+    /*初始化返回值am_badfile*/
     Eterm retval = am_badfile;
     LoaderState* stp;
 
@@ -616,7 +625,9 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
      * Scan the IFF file.
      */
 
+    /*check_allocators?检查内存分配？？？*/
     CHKALLOC();
+    /*CHKBLK(TYPE,BLK) if ((BLK) != NULL) check_allocated_block((TYPE),(BLK))*/
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
     /*检查beam文件格式，生成相关信息*/
     if (!init_iff_file(stp, code, unloaded_size) ||
@@ -819,6 +830,7 @@ erts_finish_loading(Binary* magic, Process* c_p,
     return retval;
 }
 
+/*magic数据部分的初始化——LoaderState数据结构的初始化*/
 Binary*
 erts_alloc_loader_state(void)
 {
@@ -1454,6 +1466,9 @@ read_lambda_table(LoaderState* stp)
 	GetInt(stp, 4, Index);
 	GetInt(stp, 4, stp->lambdas[i].num_free);
 	GetInt(stp, 4, OldUniq);
+  /*beam加载时匿名函数指令reference部分
+   *fun_entry部分
+   */
 	fe = erts_put_fun_entry2(stp->module, OldUniq, i, stp->mod_md5,
 				 Index, arity-stp->lambdas[i].num_free);
 	stp->lambdas[i].fe = fe;

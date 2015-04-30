@@ -187,6 +187,13 @@ erts_realloc_binary(Eterm bin, size_t size)
     return bin;
 }
 
+/*参数信息：
+ *beam的binary数据——bin
+ *临时存储区域头指针地址——base_ptr
+ *ERTS_ALC_T_TMP——1490（分配临时存储区域大小）
+ *extra 通常为0
+ *返回值：返回二进制数据首地址
+ */
 byte*
 erts_get_aligned_binary_bytes_extra(Eterm bin, byte** base_ptr, ErtsAlcType_t allocator, unsigned extra)
 {
@@ -195,13 +202,18 @@ erts_get_aligned_binary_bytes_extra(Eterm bin, byte** base_ptr, ErtsAlcType_t al
     Uint byte_size;
     Uint offs = 0;
     Uint bit_offs = 0;
-    
+    /*是否为binary文件*/
     if (is_not_binary(bin)) {
 	return NULL;
     }
     byte_size = binary_size(bin);
+    /*binary_val宏在erl_term.h中
+     *#define binary_val(x) _ET_APPLY(binary_val,(x))
+     */
     real_bin = binary_val(bin);
+
     if (*real_bin == HEADER_SUB_BIN) {
+    /*ErlSubBin二进制数据*/
 	ErlSubBin* sb = (ErlSubBin *) real_bin;
 	if (sb->bitsize) {
 	    return NULL;
@@ -210,11 +222,15 @@ erts_get_aligned_binary_bytes_extra(Eterm bin, byte** base_ptr, ErtsAlcType_t al
 	bit_offs = sb->bitoffs;
 	real_bin = binary_val(sb->orig);
     }
+
     if (*real_bin == HEADER_PROC_BIN) {
+    /*ProcBin二进制数据*/
 	bytes = ((ProcBin *) real_bin)->bytes + offs;
     } else {
+    /*ErlHeapBin二进制数据*/
 	bytes = (byte *)(&(((ErlHeapBin *) real_bin)->data)) + offs;
     }
+
     if (bit_offs) {
 	byte* buf = (byte *) erts_alloc(allocator, byte_size + extra);
 	*base_ptr = buf;
@@ -222,6 +238,7 @@ erts_get_aligned_binary_bytes_extra(Eterm bin, byte** base_ptr, ErtsAlcType_t al
 	erts_copy_bits(bytes, bit_offs, 1, buf, 0, 1, byte_size*8);	
 	bytes = buf;
     }
+
     return bytes;
 }
 
