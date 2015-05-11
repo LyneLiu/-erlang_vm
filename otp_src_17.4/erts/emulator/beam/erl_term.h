@@ -17,6 +17,10 @@
  * %CopyrightEnd%
  */
 
+/* Erlang 数据类型的头文件
+ * VM内部，Eterm的数据类型是以后缀识别的
+ */
+
 #ifndef __ERL_TERM_H
 #define __ERL_TERM_H
 
@@ -73,15 +77,17 @@ struct erl_node_; /* Declared in erl_node_tables.h */
 #define _ET_APPLY(F,X)	_unchecked_##F(X)
 #endif
 
+/* primary tag 占用2位 */
 #define _TAG_PRIMARY_SIZE	2
-#define _TAG_PRIMARY_MASK	0x3
-#define TAG_PRIMARY_HEADER	0x0
-#define TAG_PRIMARY_LIST	0x1
+#define _TAG_PRIMARY_MASK	0x3 	
+#define TAG_PRIMARY_HEADER	0x0 	
+#define TAG_PRIMARY_LIST	0x1 	
 #define TAG_PRIMARY_BOXED	0x2
 #define TAG_PRIMARY_IMMED1	0x3
 
 #define primary_tag(x)	((x) & _TAG_PRIMARY_MASK)
 
+/* immed1 tag 占用4位 */
 #define _TAG_IMMED1_SIZE	4
 #define _TAG_IMMED1_MASK	0xF
 #define _TAG_IMMED1_PID		((0x0 << _TAG_PRIMARY_SIZE) | TAG_PRIMARY_IMMED1)
@@ -89,11 +95,37 @@ struct erl_node_; /* Declared in erl_node_tables.h */
 #define _TAG_IMMED1_IMMED2	((0x2 << _TAG_PRIMARY_SIZE) | TAG_PRIMARY_IMMED1)
 #define _TAG_IMMED1_SMALL	((0x3 << _TAG_PRIMARY_SIZE) | TAG_PRIMARY_IMMED1)
 
+/* immed2 tag 占用6位 */
 #define _TAG_IMMED2_SIZE	6
 #define _TAG_IMMED2_MASK	0x3F
 #define _TAG_IMMED2_ATOM	((0x0 << _TAG_IMMED1_SIZE) | _TAG_IMMED1_IMMED2)
 #define _TAG_IMMED2_CATCH	((0x1 << _TAG_IMMED1_SIZE) | _TAG_IMMED1_IMMED2)
 #define _TAG_IMMED2_NIL		((0x3 << _TAG_IMMED1_SIZE) | _TAG_IMMED1_IMMED2)
+
+/*
+将16进制数改为2进制数
+#define _TAG_PRIMARY_SIZE	2
+#define _TAG_PRIMARY_MASK	11B
+#define TAG_PRIMARY_HEADER	00B
+#define TAG_PRIMARY_LIST	01B
+#define TAG_PRIMARY_BOXED	10B
+#define TAG_PRIMARY_IMMED1	11B
+
+
+#define _TAG_IMMED1_SIZE	4
+#define _TAG_IMMED1_MASK	1111B
+#define _TAG_IMMED1_PID		0011B
+#define _TAG_IMMED1_PORT	0111B
+#define _TAG_IMMED1_IMMED2	1011B
+#define _TAG_IMMED1_SMALL	1111B
+
+
+#define _TAG_IMMED2_SIZE	6
+#define _TAG_IMMED2_MASK	111111B
+#define _TAG_IMMED2_ATOM	001011B
+#define _TAG_IMMED2_CATCH	011011B
+#define _TAG_IMMED2_NIL		111011B
+*/
 
 /*
  * HEADER representation:

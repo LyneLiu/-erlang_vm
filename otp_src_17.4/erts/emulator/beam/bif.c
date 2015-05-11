@@ -3461,23 +3461,52 @@ BIF_RETTYPE tuple_to_list_1(BIF_ALIST_1)
 
 BIF_RETTYPE list_to_tuple_1(BIF_ALIST_1)
 {
+	// 接收参数，它是一个指向list内容的指针
+	// 注意：这是一个被封装过的地址值，不能直接当作系统指针使用
     Eterm list = BIF_ARG_1;
     Eterm* cons;
     Eterm res;
     Eterm* hp;
     int len;
 
+    // 计算list的长度
     if ((len = erts_list_length(list)) < 0 || len > ERTS_MAX_TUPLE_SIZE) {
 	BIF_ERROR(BIF_P, BADARG);
     }
 
+    // 给将要创建的tuple分配内存空间
+    // 从实现来看，tuple的长度为list长度+1
+    // 为什么+1？
+    // 因为每个tuple的头部都有个header
+    // 用来存放arityval，即tuple的长度
+    // 说明：指针经过字节对齐处理的，由HAlloc(BIF_P, len+1)返回的指针，最后两位一定会是00B
     hp = HAlloc(BIF_P, len+1);
+    // 将指针封装成erl数据类型
+    // 实现：hp + 0x2 = res，其中0x2就是TAG_PRIMARY_BOXED的值
     res = make_tuple(hp);
-    *hp++ = make_arityval(len);
+    // 生成tuple的arityval(header)
+    int arityval = make_arityval(len);
+    // 我们可以调试观察下
+    erts_fprintf(stderr,
+    			"list:%X hp:%p res:%X arityval:%X\n",
+    			list,hp,res,arityval);
+    *hp++ = arityval;
+
     while(is_list(list)) {
-	cons = list_val(list);
-	*hp++ = CAR(cons);
-	list = CDR(cons);
+    	// 通过erlang中传过来的list指针值转换为系统指针
+		cons = list_val(list);
+		// 为了观察变量值，我增加了下面这一句  
+        erts_fprintf(stderr,  
+                    "element value:%X, new list pointer:%X\n",  
+                    cons[0], cons[1]);  
+        // 下面两行是理解list构造的关键，从中我们可以得知：  
+        // cons[0]存储的是list元素值，  
+        // cons[1]存储的是指向下一个list元素，  
+        // 这就表明，list是由单向链表实现的，  
+        // 每一个元素都占用了8个字节的空间，  
+        // 前四个字节存元素值，后四个字节存list的下一个元素的指针值  
+		*hp++ = CAR(cons);
+		list = CDR(cons);
     }
     BIF_RET(res);
 }
