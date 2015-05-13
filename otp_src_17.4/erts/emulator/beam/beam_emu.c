@@ -244,7 +244,10 @@ void** beam_ops;
 #ifndef ERTS_SMP /* Not supported with smp emulator */
 extern int count_instructions;
 #endif
-/*swap换入*/
+
+/*swap换入
+ *#define HEAP_TOP(p)       (p)->htop
+ */
 #define SWAPIN             \
     HTOP = HEAP_TOP(c_p);  \
     E = c_p->stop
@@ -1829,12 +1832,12 @@ void process_main(void)
      /* Fall through to the loop_rec/2 instruction */
  }
 
-    /*
-     * Pick up the next message and place it in x(0).
-     * If no message, jump to a wait or wait_timeout instruction.
-     * 从信箱取出一条信息放到x(0)寄存器；
-     * 没有消息则跳到wait或者wait_timeout指令
-     */
+/*
+ * Pick up the next message and place it in x(0).
+ * If no message, jump to a wait or wait_timeout instruction.
+ * 从信箱取出一条信息放到x(0)寄存器；
+ * 没有消息则跳到wait或者wait_timeout指令
+ */
  OpCase(i_loop_rec_fr):
  {
      BeamInstr *next;
@@ -1856,6 +1859,7 @@ void process_main(void)
 	     SWAPOUT;
 	     goto do_schedule; /* Will be rescheduled for exit */
 	 }
+   /*将SMP下的message queue移到private queue中*/
 	 ERTS_SMP_MSGQ_MV_INQ2PRIVQ(c_p);
 	 msgp = PEEK_MESSAGE(c_p);
 	 if (msgp)
@@ -1863,24 +1867,26 @@ void process_main(void)
 	 else
 #endif
 	 {
-       /*信箱没有消息则跳到wait或者wait_timeout指令（实际上就是执行下一条指令）*/
+       /*信箱没有消息则跳到wait或者wait_timeout指令*/
 	     SET_I((BeamInstr *) Arg(0));
 	     Goto(*I);		/* Jump to a wait or wait_timeout instruction */
 	 }
      }
-     /*解析分布式消息，把消息附加的数据复制到进程私有堆*/
-     ErtsMoveMsgAttachmentIntoProc(msgp, c_p, E, HTOP, FCALLS,
-				   {
-				       SWAPOUT;
-				       reg[0] = r(0);
-				       PROCESS_MAIN_CHK_LOCKS(c_p);
-				   },
-				   {
-				       ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
-				       PROCESS_MAIN_CHK_LOCKS(c_p);
-				       r(0) = reg[0];
-				       SWAPIN;
-				   });
+
+   /*解析分布式消息，把消息附加的数据复制到进程私有堆*/
+   ErtsMoveMsgAttachmentIntoProc(msgp, c_p, E, HTOP, FCALLS,
+			   {
+			       SWAPOUT;
+			       reg[0] = r(0);
+			       PROCESS_MAIN_CHK_LOCKS(c_p);
+			   },
+			   {
+			       ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
+			       PROCESS_MAIN_CHK_LOCKS(c_p);
+			       r(0) = reg[0];
+			       SWAPIN;
+			   });
+
      if (is_non_value(ERL_MESSAGE_TERM(msgp))) {
 	 /*
 	  * A corrupt distribution message that we weren't able to decode;
@@ -1894,6 +1900,9 @@ void process_main(void)
 	 goto loop_rec__;/*跳到上面继续*/
      }
      PreFetch(1, next);/*标记下一条指令位置*/
+     /*ERL_MESSAGE_TERM(mp) ((mp)->m[0])
+      *将message放到r(0)中
+      */
      r(0) = ERL_MESSAGE_TERM(msgp);
      NextPF(1, next);/*执行下一条指令*/
  }
@@ -1980,6 +1989,7 @@ void process_main(void)
      }
 #ifdef USE_VM_PROBES
      if (DTRACE_ENABLED(message_receive)) {
+        /*trace消息接收*/
          Eterm token2 = NIL;
          DTRACE_CHARBUF(receiver_name, DTRACE_TERM_BUF_SIZE);
          Sint tok_label = 0;
