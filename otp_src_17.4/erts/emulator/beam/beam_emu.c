@@ -1238,6 +1238,7 @@ void process_main(void)
     ASSERT(erts_get_scheduler_data()->num_tmp_heap_used == 0);
 #endif
     ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
+    /*通过schedule()计算得到下一条需要执行的process的指针*/
     c_p = schedule(c_p, reds_used);
     ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
     start_time = 0;
@@ -1263,7 +1264,7 @@ void process_main(void)
 	Eterm* argp;
 	BeamInstr *next;
 	int i;
-
+  /* 1、首先将进程的寄存器参数恢复到每个寄存器中*/
 	argp = c_p->arg_reg;
 	for (i = c_p->arity - 1; i > 0; i--) {
 	    reg[i] = argp[i];
@@ -1275,7 +1276,7 @@ void process_main(void)
 	 * the code size (referencing a field in a struct through a pointer stored
 	 * in a register gives smaller code than referencing a global variable).
 	 */
-
+  /* 2、设置register变量I，I代表的是下一条即将执行的Erlang虚拟机指令threaded-code */
 	SET_I(c_p->i);
 
 	reds = c_p->fcalls;
@@ -1288,6 +1289,9 @@ void process_main(void)
 	    FCALLS = REDS_IN(c_p) = reds;
 	}
 
+  /* 3、然后next指针指向I寄存器中保存的threaded-code地址，
+   * 经过一系列的跟踪调用后调用Goto（next）这个宏执行下一条threaded-code 
+   */
 	next = (BeamInstr *) *I;
 	r(0) = c_p->arg_reg[0];
 #ifdef HARDDEBUG
@@ -1636,18 +1640,25 @@ void process_main(void)
      */
 
  OpCase(send): {
+     /*下一条指令*/
      BeamInstr *next;
+     /*send指令结果*/
      Eterm result;
 
      PRE_BIF_SWAPOUT(c_p);
+     /*首先计算进程的reds消耗，执行减1操作*/
      c_p->fcalls = FCALLS - 1;
+     /*将寄存器r0的值赋给reg[0]*/
      reg[0] = r(0);
+     /*register变量r0此时保持的值为要发送的进程id，x(1)此时保存的是要发送的消息体的地址*/
      result = erl_send(c_p, r(0), x(1));
+     /*将I指向的地址做+1操作后赋予next指针*/
      PreFetch(0, next);
      ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
      ERTS_SMP_REQ_PROC_MAIN_LOCK(c_p);
      PROCESS_MAIN_CHK_LOCKS(c_p);
      if (c_p->mbuf || MSO(c_p).overhead >= BIN_VHEAP_SZ(c_p)) {
+      /*对发送的消息数据进行内存回收？？？*/
 	 result = erts_gc_after_bif_call(c_p, result, reg, 2);
 	 r(0) = reg[0];
 	 E = c_p->stop;
@@ -3475,6 +3486,7 @@ get_map_elements_fail:
  /* Fall through here */
 
  find_func_info: {
+     /* 对执行现场进行错误检查 ，并将handle_error结果返回给register变量I*/
      reg[0] = r(0);
      SWAPOUT;
      I = handle_error(c_p, I, reg, NULL);
@@ -3508,15 +3520,18 @@ get_map_elements_fail:
      SWAPOUT;
      I = handle_error(c_p, NULL, reg, NULL);
  post_error_handling:
+     /* 如果I == 0 ，说明执行成功，至此一次完整的调度执行流程完成，程序将进入下一次调度 */
      if (I == 0) {
 	 goto do_schedule;
      } else {
+     /* 如果I != 1 ,说明执行错误，将调用erts_garbage_collect对执行过程中的对数据进行回收 */
 	 r(0) = reg[0];
 	 ASSERT(!is_value(r(0)));
 	 if (c_p->mbuf) {
 	     erts_garbage_collect(c_p, 0, reg+1, 3);
 	 }
 	 SWAPIN;
+   /* 跳转到具体的错误处理函数中 */
 	 Goto(*I);
      }
  }
