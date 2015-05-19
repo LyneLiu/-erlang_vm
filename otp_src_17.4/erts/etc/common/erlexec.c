@@ -410,6 +410,9 @@ int main(int argc, char **argv)
     char *malloc_lib;
     int process_args = 1;
     int print_args_exit = 0;
+    /*打印启动参数信息
+     *关于启动参数的相关信息可以搜索erl flag等相关资料
+     */
     int print_qouted_cmd_exit = 0;
     erts_cpu_info_t *cpuinfo = NULL;
     char* emu_name;

@@ -258,6 +258,7 @@ format_error_reason(Reason) ->
     io_lib:format("~tp", [Reason]).
 
 %% The compile state record.
+%% 记录源码文件编译状态的相关信息
 -record(compile, {filename="" :: file:filename(),
 		  dir=""      :: file:filename(),
 		  base=""     :: file:filename(),
@@ -279,6 +280,8 @@ internal({forms,Forms}, Opts0) ->
     Opts1 = proplists:delete(source, Opts0),
     Compile = #compile{code=Forms,options=Opts1,mod_options=Opts1},
     internal_comp(Ps, Source, "", Compile);
+
+%% 编译file文件，c(Mod)编译时，Opts为[]
 internal({file,File}, Opts) ->
     {Ext,Ps} = passes(file, Opts),
     Compile = #compile{options=Opts,mod_options=Opts},
@@ -288,6 +291,7 @@ internal_comp(Passes, File, Suffix, St0) ->
     Dir = filename:dirname(File),
     Base = filename:basename(File, Suffix),
     St1 = St0#compile{filename=File, dir=Dir, base=Base,
+              %% erl源文件，obj目标文件
 		      ifile=erlfile(Dir, Base, Suffix),
 		      ofile=objfile(Base, St0)},
     Run = case member(time, St1#compile.options) of
@@ -398,6 +402,9 @@ mpf(Ms) ->
 %% passes(forms|file, [Option]) -> {Extension,[{Name,PassFun}]}
 %%  Figure out the extension of the input file and which passes
 %%  that need to be run.
+%% 示例：
+%% passes_1([])为默认情况，即编译模块
+%% 但会结果为：｛".erl",[{parse_module}|standard_passes()]｝.
 
 passes(Type, Opts) ->
     {Ext,Passes0} = passes_1(Opts),

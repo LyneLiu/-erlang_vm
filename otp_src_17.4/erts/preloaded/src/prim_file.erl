@@ -1099,10 +1099,13 @@ drv_command(Port, Command, R) ->
 	    {error, Reason}
     end.
 
+%% port是Erlang与外界进行交互的方式
 drv_command(Port, Command, Validated, R) when is_port(Port) ->
     Save = erlang:dt_spread_tag(false),
+    %% 向port发送command请求
     try erlang:port_command(Port, erlang:dt_append_vm_tag_data(Command)) of
 	true ->
+		%% 等待端口的响应
 	    drv_get_response(Port, R)
     catch
 	%% If the Command is valid, knowing that the port is a port,

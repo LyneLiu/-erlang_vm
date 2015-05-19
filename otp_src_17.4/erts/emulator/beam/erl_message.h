@@ -69,6 +69,7 @@ struct erl_heap_fragment {
     Eterm mem[1];		/* Data */
 };
 
+/*erlang message的数据结构定义*/
 typedef struct erl_mesg {
     struct erl_mesg* next;	/* 下一条 message 指针 */
     union {

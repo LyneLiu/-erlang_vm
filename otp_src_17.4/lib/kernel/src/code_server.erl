@@ -142,6 +142,8 @@ split_paths([C|T], S, Path, Paths) ->
 split_paths([], _S, Path, Paths) ->
     lists:reverse(Paths, [lists:reverse(Path)]).
 
+%% 向code_server进程发送消息，并接收Reply
+%% 参数Name为：code_server
 call(Name, Req) ->
     Name ! {code_call, self(), Req},
     receive 

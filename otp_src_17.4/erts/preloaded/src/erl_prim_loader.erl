@@ -256,6 +256,8 @@ release_archives() ->
 
 request(Req) ->
     Loader = whereis(erl_prim_loader),
+    %% 添加编译调试信息
+    error_logger:error_msg("Loader:~p~n",[Loader]),
     Loader ! {self(),Req},
     receive
         {Loader,Res} ->
@@ -320,6 +322,7 @@ loop(State, Parent, Paths) ->
                     {get_path,_} ->
                         {{ok,Paths},State,Paths};
                     {get_file,File} ->
+                        error_logger:error_msg("receive the get_file request.~n",[]),
                         {Res,State1} = handle_get_file(State, Paths, File),
                         {Res,State1,Paths};
                     {get_files,{ModFiles,Fun}} ->
@@ -380,8 +383,10 @@ handle_get_files(State, _ModFiles, _Paths, _Fun) ->     % no multi get
     {{error,no_multi_get},State}.
     
 handle_get_file(State = #state{loader = efile}, Paths, File) ->
+    error_logger:error_msg("efile format.~n",[]),
     ?SAFE2(efile_get_file_from_port(State, File, Paths), State);
 handle_get_file(State = #state{loader = inet}, Paths, File) ->
+    error_logger:error_msg("inet format.~n",[]),
     ?SAFE2(inet_get_file_from_port(State, File, Paths), State).
 
 handle_set_primary_archive(State= #state{loader = efile}, File, ArchiveBin, FileInfo, ParserFun) ->
