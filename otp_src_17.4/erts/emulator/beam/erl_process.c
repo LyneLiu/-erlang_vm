@@ -10508,6 +10508,7 @@ alloc_process(ErtsRunQueue *rq, erts_aint32_t state)
     return p;
 }
 
+/* 创建一个进程 */
 Eterm
 erl_create_process(Process* parent, /* Parent of process (default group leader). */
 		   Eterm mod,	/* Tagged atom for module. */
@@ -10523,6 +10524,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     Uint heap_need;		/* Size needed on heap. */
     Eterm res = THE_NON_VALUE;
     erts_aint32_t state = 0;
+    /* 进程优先级（max, high, normal, low） */
     erts_aint32_t prio = (erts_aint32_t) PRIORITY_NORMAL;
 
 #ifdef ERTS_SMP
@@ -10554,9 +10556,11 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     if (!rq)
 	rq = erts_get_runq_proc(parent);
 
+    /* 首先调用alloc_process分配一个process需要的内存空间*/
     p = alloc_process(rq, state); /* All proc locks are locked by this thread
 				     on success */
     if (!p) {
+    /* 如果p==NULL，说明系统中进程数量已达到上限 */
 	erts_send_error_to_logger_str(parent->group_leader,
 				      "Too many processes\n");
 	so->error_code = SYSTEM_LIMIT;
@@ -10575,18 +10579,24 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 
     p->flags = erts_default_process_flags;
 
+    /* 设置process的最小堆大小 */
     if (so->flags & SPO_USE_ARGS) {
-	p->min_heap_size  = so->min_heap_size;
-	p->min_vheap_size = so->min_vheap_size;
-	p->max_gen_gcs    = so->max_gen_gcs;
+    /* 以参数值设置堆属性，一般通过erlang:spawn_opt_1调用传入参数 */
+	p->min_heap_size  = so->min_heap_size;     // 最小对内存
+	p->min_vheap_size = so->min_vheap_size;    // 最小虚拟对内存
+	p->max_gen_gcs    = so->max_gen_gcs;       // full gc之前可进行的minor gc的最大次数
     } else {
+    /* 按照默认值设置：H_MIN_SIZE = 233 fib(11)，erlang里的堆内存按照fib系列增长，  
+     * 具体可参见[$OTP_SRC/erts/emulator/beam/erl_c.c --> erts_init_gc]里的说明）
+     */
 	p->min_heap_size  = H_MIN_SIZE;
-	p->min_vheap_size = BIN_VH_MIN_SIZE;
+	p->min_vheap_size = BIN_VH_MIN_SIZE;   // 默认值32768（216）
 	p->max_gen_gcs    = (Uint16) erts_smp_atomic32_read_nob(&erts_max_gen_gcs);
     }
     p->schedule_count = 0;
     ASSERT(p->min_heap_size == erts_next_heap_size(p->min_heap_size, 0));
     
+    /* 创建进程时传入的module，function，和参数的数量 */
     p->initial[INITIAL_MOD] = mod;
     p->initial[INITIAL_FUN] = func;
     p->initial[INITIAL_ARI] = (Uint) arity;
@@ -10597,6 +10607,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     p->off_heap.first = NULL;
     p->off_heap.overhead = 0;
 
+    /* 计算初始需要的heap大小 */
     heap_need +=
 	IS_CONST(parent->group_leader) ? 0 : NC_HEAP_SIZE(parent->group_leader);
 
@@ -10612,10 +10623,17 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     hipe_init_process_smp(&p->hipe_smp);
 #endif
 #endif
+    /* 分配进程堆内存 */
     p->heap = (Eterm *) ERTS_HEAP_ALLOC(ERTS_ALC_T_HEAP, sizeof(Eterm)*sz);
     p->old_hend = p->old_htop = p->old_heap = NULL;
+    /* 进程堆内存里年轻代的标志位：地址小于此标志位的，是较老的年轻代（一般情况  
+     * 下，这些对象至少经过了一次minor gc或者major gc）；大于这个地址的是较年轻的  
+     * 年轻代。
+     */
     p->high_water = p->heap;
+    /* minor gc的次数*/
     p->gen_gcs = 0;
+    /* 栈顶 */
     p->stop = p->hend = p->heap + sz;
     p->htop = p->heap;
     p->heap_sz = sz;
@@ -10629,10 +10647,12 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     p->sys_task_qs = NULL;
 
     /* No need to initialize p->fcalls. */
-
+    /* 当前模块及函数信息 */
     p->current = p->initial+INITIAL_MOD;
 
+    /* 第一条指令设置为i_apply */
     p->i = (BeamInstr *) beam_apply;
+    /* cp保存进入一个函数调用时，当前函数的下一条指令 */
     p->cp = (BeamInstr *) beam_apply+1;
 
     p->arg_reg = p->def_arg_reg;
@@ -10679,11 +10699,13 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 
     erts_get_default_tracing(&ERTS_TRACE_FLAGS(p), &ERTS_TRACER_PROC(p));
 
+    /* 消息队列 */
     p->msg.first = NULL;
     p->msg.last = &p->msg.first;
     p->msg.save = &p->msg.first;
     p->msg.len = 0;
 #ifdef ERTS_SMP
+    /* 消息进入队列 */
     p->msg_inq.first = NULL;
     p->msg_inq.last = &p->msg_inq.first;
     p->msg_inq.len = 0;
@@ -10731,6 +10753,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
      */
 
     if (so->flags & SPO_LINK) {
+        /* 进程链接，由spawn_link指定  */
 #ifdef DEBUG
 	int ret;
 #endif
@@ -10744,6 +10767,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 	ret = erts_add_link(&ERTS_P_LINKS(p), LINK_PID, parent->common.id);
 	ASSERT(ret == 0);
 #else	
+    /* 父进程及当前进程互相连接  */
 	erts_add_link(&ERTS_P_LINKS(parent), LINK_PID, p->common.id);
 	erts_add_link(&ERTS_P_LINKS(p), LINK_PID, parent->common.id);
 #endif
@@ -10766,7 +10790,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
      */
     if (so->flags & SPO_MONITOR) {
 	Eterm mref;
-
+    /* 进程监控：单向，由spawn_monitor指定  */
 	mref = erts_make_ref(parent);
 	erts_add_monitor(&ERTS_P_MONITORS(parent), MON_ORIGIN, mref, p->common.id, NIL);
 	erts_add_monitor(&ERTS_P_MONITORS(p), MON_TARGET, mref, parent->common.id, NIL);
@@ -10791,6 +10815,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 
     /*
      * Schedule process for execution.
+     * 调度进程
      */
 
     schedule_process(p, state, 0);
