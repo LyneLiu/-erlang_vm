@@ -2790,6 +2790,7 @@ get_map_elements_fail:
     /*
      * The most general BIF call.  The BIF may build any amount of data
      * on the heap.  The result is always returned in r(0).
+     * 所有的bif函数都会通过指令call_bif_e来调用
      */
  OpCase(call_bif_e):
     {
@@ -5210,6 +5211,7 @@ get_map_elements_fail:
 
      /*
       * Enter all BIFs into the export table.
+      * 将所有的bif函数导出表
       */
      for (i = 0; i < BIF_SIZE; i++) {
 	 ep = erts_export_put(bif_table[i].module,
