@@ -365,6 +365,16 @@ erl_init(int ncpu,
     erl_nif_init();
 }
 
+/*
+ * 创建Erlang虚拟机上的第一个进程，调用otp_ring0模块中的start/2函数，
+ * start/2函数调用init模块的boot/1函数，之后开始Erlang/OTP的引导过程
+ * 参数：
+ * *modname = "otp_ring0"
+ * code = NULL
+ * size = 0
+ * argc = boot_argc
+ * argv = boot_argv
+ */
 static void
 erl_first_process_otp(char* modname, void* code, unsigned size, int argc, char** argv)
 {
@@ -384,6 +394,7 @@ erl_first_process_otp(char* modname, void* code, unsigned size, int argc, char**
 
     /*
      * We need a dummy parent process to be able to call erl_create_process().
+     * 需要虚拟一个父进程来调用erl_create_process()
      */
 
     erts_init_empty_process(&parent);

@@ -1836,7 +1836,8 @@ make_tuple(_Arity,_DefaultValue,_InitList) ->
       Nodes :: [node()].
 nodes(_Arg) ->
     erlang:nif_error(undefined).
-
+    
+% 开启端口，与外界进行交互
 -spec open_port(PortName, PortSettings) -> port() when
       PortName :: {spawn, Command :: string() | binary()} |
                   {spawn_driver, Command :: string() | binary()} |
