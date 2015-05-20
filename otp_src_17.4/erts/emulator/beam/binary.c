@@ -187,7 +187,8 @@ erts_realloc_binary(Eterm bin, size_t size)
     return bin;
 }
 
-/*参数信息：
+/*函数功能：复制原始的beam文件
+ *参数信息：
  *beam的binary数据——bin
  *临时存储区域头指针地址——base_ptr
  *ERTS_ALC_T_TMP——1490（分配临时存储区域大小）
@@ -213,7 +214,7 @@ erts_get_aligned_binary_bytes_extra(Eterm bin, byte** base_ptr, ErtsAlcType_t al
     real_bin = binary_val(bin);
 
     if (*real_bin == HEADER_SUB_BIN) {
-    /*ErlSubBin二进制数据*/
+    /*ErlSubBin二进制数据：分离binary时产生的子binary*/
 	ErlSubBin* sb = (ErlSubBin *) real_bin;
 	if (sb->bitsize) {
 	    return NULL;
@@ -227,7 +228,7 @@ erts_get_aligned_binary_bytes_extra(Eterm bin, byte** base_ptr, ErtsAlcType_t al
     /*ProcBin二进制数据*/
 	bytes = ((ProcBin *) real_bin)->bytes + offs;
     } else {
-    /*ErlHeapBin二进制数据*/
+    /*ErlHeapBin二进制数据：小binary，直接放在堆中*/
 	bytes = (byte *)(&(((ErlHeapBin *) real_bin)->data)) + offs;
     }
 

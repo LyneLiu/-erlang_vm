@@ -122,17 +122,18 @@ prepare_loading_2(BIF_ALIST_2)
 	erts_free_aligned_binary_bytes(temp_alloc);
 	BIF_ERROR(BIF_P, BADARG);
     }
-    /*复制原始beam的binary文件到temp_alloc中*/
+    /*复制原始beam的binary文件*/
     if ((code = erts_get_aligned_binary_bytes(BIF_ARG_2, &temp_alloc)) == NULL) {
 	goto error;
     }
-    /*初始化LoaderState数据存储空间*/
+    /*分配并初始化LoaderState数据存储空间*/
     magic = erts_alloc_loader_state();
     /*加载的binary文件大小*/
     sz = binary_size(BIF_ARG_2);
     /*完成beam的加载，并返回加载结果。正常load后reason的值为NIL*/
     reason = erts_prepare_loading(magic, BIF_P, BIF_P->group_leader,
 				  &BIF_ARG_1, code, sz);
+
     erts_free_aligned_binary_bytes(temp_alloc);
     if (reason != NIL) {
 	hp = HAlloc(BIF_P, 3);

@@ -597,12 +597,13 @@ extern void check_allocated_block(Uint type, void *blk);
 #endif
 
 /*ERTS加载beam到vm中的实现
+ *函数功能：实现beam解析，加载数据，生成导出函数
  *参数信息：
  *LoaderState数据结构
  *当前进程——c_p
  *group_leader
  *module名——modp
- *二进制数据部分——code
+ *二进制数据部分——code（beam的二进制形式）
  *二进制数据大小——ubload_size
  */
 Eterm
@@ -625,9 +626,12 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
      * Scan the IFF file.
      */
 
-    /*check_allocators?检查内存分配？？？*/
+    /*check_allocators检查内存分配？？？*/
     CHKALLOC();
-    /*CHKBLK(TYPE,BLK) if ((BLK) != NULL) check_allocated_block((TYPE),(BLK))*/
+    /*CHKBLK(TYPE,BLK) if ((BLK) != NULL) check_allocated_block((TYPE),(BLK))
+     *（内存屏障？，指一类同步屏障指令，CPU或编译器在对内存随机访问的操作中的一个
+     *同步点，使得此点之前的所有读写操作都执行后才可以开始执行此点之后的操作？？？
+     */
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
     /*检查beam文件格式，生成相关信息*/
     if (!init_iff_file(stp, code, unloaded_size) ||
@@ -840,6 +844,7 @@ erts_alloc_loader_state(void)
     magic = erts_create_magic_binary(sizeof(LoaderState),
 				     loader_state_dtor);
     erts_refc_inc(&magic->refc, 1);
+    /*猜想：将magic二进制数据转换为LoaderState数据结构*/
     stp = ERTS_MAGIC_BIN_DATA(magic);
     stp->bin = NULL;
     stp->function = THE_NON_VALUE; /* Function not known yet */
