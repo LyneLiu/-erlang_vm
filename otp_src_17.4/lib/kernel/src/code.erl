@@ -127,7 +127,10 @@ module_md5(_) ->
 objfile_extension() ->
     init:objfile_extension().
 
-%% 加载.beam字节码到VM
+%% 加载.beam字节码到VM：
+%% 向code_server发送load_file请求，加载Mod
+%% code_server调用erl_prim_load模块get_file，
+%% 然后通过erlang:load_module实现加载。
 -spec load_file(Module) -> load_ret() when
       Module :: module().
 load_file(Mod) when is_atom(Mod) ->

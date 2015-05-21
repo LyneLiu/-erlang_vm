@@ -236,6 +236,7 @@ erts_get_aligned_binary_bytes_extra(Eterm bin, byte** base_ptr, ErtsAlcType_t al
 	byte* buf = (byte *) erts_alloc(allocator, byte_size + extra);
 	*base_ptr = buf;
 	buf += extra;
+    /*基本的bit copy操作*/
 	erts_copy_bits(bytes, bit_offs, 1, buf, 0, 1, byte_size*8);	
 	bytes = buf;
     }
