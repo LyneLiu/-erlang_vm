@@ -144,6 +144,7 @@ typedef struct {
     BeamInstr* address;		/* Address to function in code. */
 } ExportEntry;
 
+/* 将4个char字节转换为32位int进行存储 */
 #define MakeIffId(a, b, c, d) \
   (((Uint) (a) << 24) | ((Uint) (b) << 16) | ((Uint) (c) << 8) | (Uint) (d))
 
@@ -398,6 +399,7 @@ typedef struct LoaderState {
 
 #define EndOfFile(Stp) (stp->file_left == 0)
 
+/* 获取当前文件的N个字节的结果 */
 #define GetInt(Stp, N, Dest) \
     if (Stp->file_left < (N)) { \
        short_file(__LINE__, Stp, (N)); \
@@ -406,6 +408,7 @@ typedef struct LoaderState {
        int __n = (N); \
        BeamInstr __result = 0; \
        Stp->file_left -= (unsigned) __n; \
+       /*获取当前文件的大小：将4个字节转换为32位整数*/
        while (__n-- > 0) { \
           __result = __result << 8 | *Stp->file_p++; \
        } \
@@ -646,6 +649,10 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
      */
 
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
+    /*获取chunk的start位置，及size大小
+     *使用file_p记录当前指针
+     *使用file_left记录size大小
+     */
     define_file(stp, "code chunk header", CODE_CHUNK);
     if (!read_code_header(stp)) {
 	goto load_error;
@@ -1041,17 +1048,18 @@ init_iff_file(LoaderState* stp, byte* code, Uint size)
 
     /*
      * Check if the module is compressed (or possibly invalid/corrupted).
+     * 检查开始的四个字节是否是‘FOR1’
      */
     if (MakeIffId(code[0], code[1], code[2], code[3]) != form_id) {
-	stp->bin = (ErlDrvBinary *) erts_gzinflate_buffer((char*)code, size);
-	if (stp->bin == NULL) {
-	    goto load_error;
-	}
-	code = (byte*)stp->bin->orig_bytes;
-	size = stp->bin->orig_size;
-	if (size < 4) {
-	    goto load_error;
-	}
+        	stp->bin = (ErlDrvBinary *) erts_gzinflate_buffer((char*)code, size);
+        	if (stp->bin == NULL) {
+        	    goto load_error;
+        	}
+        	code = (byte*)stp->bin->orig_bytes;
+        	size = stp->bin->orig_size;
+        	if (size < 4) {
+        	    goto load_error;
+        	}
     }
 
     /*
@@ -1063,10 +1071,12 @@ init_iff_file(LoaderState* stp, byte* code, Uint size)
 
     /*
      * Initialize our "virtual file system".
+     * 正在读取的是“IFF 头部”
      */
-
     stp->file_name = "IFF header for Beam file";
+    /*当前binary file的指针位置：表示读取FOR1后的位置*/
     stp->file_p = code + 4;
+    /*读取后size减4*/
     stp->file_left = size - 4;
 
     /*
@@ -1075,6 +1085,9 @@ init_iff_file(LoaderState* stp, byte* code, Uint size)
      * as the limit for the logical file size.
      */
 
+    /* beam file 的第二个32位表示文件大小 
+     * 通过获取文件大小然后使用其与当前文件中的binary大小做比较
+     */ 
     GetInt(stp, 4, count);
     if (count > stp->file_left) {
 	LoadError2(stp, "form size %ld greater than size %ld of binary",
@@ -1084,12 +1097,15 @@ init_iff_file(LoaderState* stp, byte* code, Uint size)
 
     /*
      * Verify that this is a BEAM file.
+     * 接下来获取4个字节，该四个字节的值应该是‘BEAM’
+     * 确认当前文件是BEAM file格式
      */
 
     GetInt(stp, 4, id);
     if (id != MakeIffId('B', 'E', 'A', 'M')) {
 	LoadError0(stp, "not a BEAM file: IFF form type is not 'BEAM'");
     }
+    /* 当判断当前文件符合IFF格式并且是BEAM文件后，返回true即1 */
     return 1;
 
  load_error:
@@ -1098,6 +1114,12 @@ init_iff_file(LoaderState* stp, byte* code, Uint size)
 
 /*
  * Scan the IFF file. The header should have been verified by init_iff_file().
+ * 参数说明：
+ * 1.stp表示当前加载的beam文件数据结构
+ * 2.chunk_types是被加载器识别的chunk数组，
+ * 其中包含Atom、Code、StrT、Impt、Expt、FunT、LitT、Attr、CInf、Line十个元素
+ * 3.num_type = 10
+ * 4.num_mandatory（强制类型） = 5
  */
 static int
 scan_iff_file(LoaderState* stp, Uint* chunk_types, Uint num_types, Uint num_mandatory)
@@ -1108,6 +1130,7 @@ scan_iff_file(LoaderState* stp, Uint* chunk_types, Uint num_types, Uint num_mand
 
     /*
      * Initialize the chunks[] array in the state.
+     * 初始化stp的chunk结构体数组
      */
 
     for (i = 0; i < num_types; i++) {
@@ -1123,6 +1146,7 @@ scan_iff_file(LoaderState* stp, Uint* chunk_types, Uint num_types, Uint num_mand
 
 	/*
 	 * Read the chunk id and verify that it contains ASCII characters.
+   * 读取chunk id，确认每个字节都是ASCII字符
 	 */
 	GetInt(stp, 4, id);
 	for (i = 0; i < 4; i++) {
@@ -1135,6 +1159,7 @@ scan_iff_file(LoaderState* stp, Uint* chunk_types, Uint num_types, Uint num_mand
 
 	/*
 	 * Read the count and verify it.
+   * 猜测：每个chunk id后会有4个字节（32位）表示该chunk的数目？！
 	 */
 
 	GetInt(stp, 4, count);
@@ -1145,6 +1170,7 @@ scan_iff_file(LoaderState* stp, Uint* chunk_types, Uint num_types, Uint num_mand
 
 	/*
 	 * See if the chunk is useful for the loader.
+   * 记录每个chunk的起始位置及size大小，chunk id标号从0到9
 	 */
 	for (i = 0; i < num_types; i++) {
 	    if (chunk_types[i] == id) {
@@ -1156,11 +1182,14 @@ scan_iff_file(LoaderState* stp, Uint* chunk_types, Uint num_types, Uint num_mand
 
 	/*
 	 * Go on to the next chunk.
+   * while循环读取记录下一个chunk
 	 */
 	count = 4*((count+3)/4);
 	stp->file_p += count;
 	stp->file_left -= count;
     }
+
+    /*所有chunk成功读取后返回true即1*/
     return 1;
 
  load_error:
@@ -1170,6 +1199,8 @@ scan_iff_file(LoaderState* stp, Uint* chunk_types, Uint num_types, Uint num_mand
 /*
  * Verify that all mandatory chunks are present and calculate
  * MD5 for the module.
+ * 确认强制的chunk部分存在————0到4（5个chunk类型）
+ * 为其添加MD5校验码
  */
 
 static int
@@ -1678,6 +1709,7 @@ read_line_table(LoaderState* stp)
     return 0;
 }
 
+/* 读取code chunk（id = 1）部分 */
 static int
 read_code_header(LoaderState* stp)
 {
@@ -1693,9 +1725,13 @@ read_code_header(LoaderState* stp)
      * size is set too small.
      */
 
+    /*获取头大小head_size*/
     GetInt(stp, 4, head_size);
+    /*记录code file的起始位置*/
     stp->code_start = stp->file_p + head_size;
+    /*记录code file的size大小*/
     stp->code_size = stp->file_left - head_size;
+    /*记录当前的头大小*/
     stp->file_left = head_size;
 
     /*
@@ -1710,6 +1746,7 @@ read_code_header(LoaderState* stp)
 
     /*
      * Verify the number of the highest opcode used.
+     * 当前版本opcode最大数目
      */
     GetInt(stp, 4, opcode_max);
     if (opcode_max > MAX_GENERIC_OPCODE) {
@@ -1723,11 +1760,14 @@ read_code_header(LoaderState* stp)
 		   opcode_max, MAX_GENERIC_OPCODE);
     }
 
+    /*记录beam中的label结构体数*/
     GetInt(stp, 4, stp->num_labels);
+    /*记录beam中的函数个数*/
     GetInt(stp, 4, stp->num_functions);
 
     /*
      * Initialize label table.
+     * 初始化label表
      */
 
     stp->labels = (Label *) erts_alloc(ERTS_ALC_T_PREPARED_CODE,
@@ -1739,7 +1779,7 @@ read_code_header(LoaderState* stp)
 	stp->labels[i].looprec_targeted = 0;
 #endif
     }
-
+    
     stp->catches = 0;
     return 1;
 
