@@ -1807,7 +1807,7 @@ static Sint remote_send(Process *p, DistEntry *dep,
     ErtsDSigData dsd;
 
     ASSERT(is_atom(to) || is_external_pid(to));
-    /*检查dist_entry状态*/
+    /*检查dist_entry状态,并初始化dsd数据*/
     code = erts_dsig_prepare(&dsd, dep, p, ERTS_DSP_NO_LOCK, !suspend);
     switch (code) {
     case ERTS_DSIG_PREP_NOT_ALIVE:
@@ -1827,6 +1827,7 @@ static Sint remote_send(Process *p, DistEntry *dep,
 	if (is_atom(to))
 	    code = erts_dsig_send_reg_msg(&dsd, to, msg);
 	else
+		/*当远程节点信息为tuple等信息时的情况*/
 	    code = erts_dsig_send_msg(&dsd, to, msg);
 	/*
 	 * Note that reductions have been bumped on calling
@@ -1871,35 +1872,37 @@ do_send(Process *p, Eterm to, Eterm msg, int suspend, Eterm *refp) {
 	    trace_send(p, to, msg);
 	if (ERTS_PROC_GET_SAVED_CALLS_BUF(p))
 	    save_calls(p, &exp_send);
-
-	rp = erts_proc_lookup_raw(to);	
-	if (!rp)
-	    return 0;
+	    
 	/*在本地找到进程则执行最后的send message*/
+	rp = erts_proc_lookup_raw(to);	
+
+	if (!rp)
+		/* 如果接收进程为自己的话直接返回0 */
+	    return 0;
 
     } else if (is_external_pid(to)) {
-    	/*如果目标节点是远程节点，检查远程节点的dist_entry状态*/
-	dep = external_pid_dist_entry(to);
-	/* erts_this_dist_entry是个全局变量
-	 * 如果远程节点对应的dist_entry异常，协作进程to失效
-	 */
-	if(dep == erts_this_dist_entry) {
-#if DEBUG
-	    erts_dsprintf_buf_t *dsbufp = erts_create_logger_dsbuf();
-	    erts_dsprintf(dsbufp,
-			  "Discarding message %T from %T to %T in an old "
-			  "incarnation (%d) of this node (%d)\n",
-			  msg,
-			  p->common.id,
-			  to,
-			  external_pid_creation(to),
-			  erts_this_node->creation);
-	    erts_send_error_to_logger(p->group_leader, dsbufp);
-#endif
-	    return 0;
-	}
-	/*远程消息调用remote_send发送*/
-	return remote_send(p, dep, to, to, msg, suspend);
+	    	/*如果目标节点是远程节点，检查远程节点的dist_entry状态*/
+			dep = external_pid_dist_entry(to);
+			/* erts_this_dist_entry是个全局变量
+			 * 如果远程节点对应的dist_entry异常，协作进程to失效
+			 */
+			if(dep == erts_this_dist_entry) {
+		#if DEBUG
+			    erts_dsprintf_buf_t *dsbufp = erts_create_logger_dsbuf();
+			    erts_dsprintf(dsbufp,
+					  "Discarding message %T from %T to %T in an old "
+					  "incarnation (%d) of this node (%d)\n",
+					  msg,
+					  p->common.id,
+					  to,
+					  external_pid_creation(to),
+					  erts_this_node->creation);
+			    erts_send_error_to_logger(p->group_leader, dsbufp);
+		#endif
+			    return 0;
+			}
+			/*远程消息调用remote_send发送*/
+			return remote_send(p, dep, to, to, msg, suspend);
 
     } else if (is_atom(to)) {
     	/*如果是atom的情况，查找是否能在注册进程表中查找到这个进程/port*/
@@ -2090,7 +2093,7 @@ do_send(Process *p, Eterm to, Eterm msg, int suspend, Eterm *refp) {
     }
 }
 
-
+/* 实现erlang:send/3 */
 BIF_RETTYPE send_3(BIF_ALIST_3)
 {
     Eterm ref;
@@ -2099,19 +2102,21 @@ BIF_RETTYPE send_3(BIF_ALIST_3)
     Eterm msg = BIF_ARG_2;
     Eterm opts = BIF_ARG_3;
 
-    int connect = !0;
-    int suspend = !0;
+    int connect = !0;	// 初始值设为1
+    int suspend = !0;	// 初始值设为1
     Eterm l = opts;
     Sint result;
     
-    while (is_list(l)) {
+    while (is_list(l)) {//遍历参数列表
 	if (CAR(list_val(l)) == am_noconnect) {
-	    connect = 0;
+	    connect = 0;	//参数带noconnect，则connect取值0
 	} else if (CAR(list_val(l)) == am_nosuspend) {
-	    suspend = 0;
+	    suspend = 0;	//参数带suspend，则suspend取值0
 	} else {
+		/* 错误返回参数错误 */
 	    BIF_ERROR(p, BADARG);
 	}
+	/*获取参数opts*/
 	l = CDR(list_val(l));
     }
     if(!is_nil(l)) {
@@ -2122,9 +2127,10 @@ BIF_RETTYPE send_3(BIF_ALIST_3)
     ref = NIL;
 #endif
 
+    /* 调用do_send发送消息；result大于0表示本次消息发送要扣除的reds */
     result = do_send(p, to, msg, suspend, &ref);
     if (result > 0) {
-	ERTS_VBUMP_REDS(p, result);
+	ERTS_VBUMP_REDS(p, result);		/* 扣除本次的reds */
 	if (ERTS_IS_PROC_OUT_OF_REDS(p))
 	    goto yield_return;
 	BIF_RET(am_ok);
@@ -2217,37 +2223,28 @@ Eterm erl_send(Process *p, Eterm to, Eterm msg)
 	BIF_RET(msg); 
 	break;
 
-	/*遇到SEND_TRAP错误*/
+	/*遇到SEND_TRAP情况*/
     case SEND_TRAP:
 	BIF_TRAP2(dsend2_trap, p, to, msg); 
 	break;
 
-	/*遇到SEND_YIELD错误*/
-    case SEND_YIELD:
-	ERTS_BIF_YIELD2(bif_export[BIF_send_2], p, to, msg);
 	break;
 
-	/*遇到SEND_YIELD_RETURN错误*/
-    case SEND_YIELD_RETURN:
     yield_return:
 	ERTS_BIF_YIELD_RETURN(p, msg);
 
-	/*遇到SEND_WAIT_RESULT错误*/
     case SEND_AWAIT_RESULT:
 	ASSERT(is_internal_ref(ref));
 	BIF_TRAP3(await_port_send_result_trap, p, ref, msg, msg);
 
-	/*遇到SEND_BADARG错误*/
     case SEND_BADARG:
 	BIF_ERROR(p, BADARG); 
 	break;
 
-	/*遇到SEND_USER_ERROR错误*/
     case SEND_USER_ERROR:
 	BIF_ERROR(p, EXC_ERROR); 
 	break;
 
-	/*遇到SEND_INTERNAL_ERROR错误*/
     case SEND_INTERNAL_ERROR:
 	BIF_ERROR(p, EXC_INTERNAL_ERROR);
 	break;
@@ -2256,6 +2253,8 @@ Eterm erl_send(Process *p, Eterm to, Eterm msg)
 	ASSERT(! "Illegal send result"); 
 	break;
     }
+
+
     ASSERT(! "Can not arrive here");
     BIF_ERROR(p, BADARG);
 }
