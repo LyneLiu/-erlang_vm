@@ -465,7 +465,8 @@ extern int count_instructions;
  * Check that we haven't used the reductions and jump to function pointed to by
  * the I register.  If we are out of reductions, do a context switch.
  */
-
+ 
+/* 检查是否有调度机会，有的话通过 I寄存器 跳转到指向的执行指令地址，没有的话切换上下文 */
 #define DispatchMacro()				\
   do {						\
      BeamInstr* dis_next;				\
@@ -1206,8 +1207,8 @@ void process_main(void)
        /* This should only be reached during the init phase when only the main
         * process is running. I.e. there is no race for init_done.
         */
-	init_done = 1;
-	goto init_emulator;
+      	init_done = 1;
+      	goto init_emulator;
     }
 
     c_p = NULL;
@@ -1657,24 +1658,25 @@ void process_main(void)
      ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
      ERTS_SMP_REQ_PROC_MAIN_LOCK(c_p);
      PROCESS_MAIN_CHK_LOCKS(c_p);
+     /*对进程的消息队列进行检查，调用erts_gc_after_bif_call对发送的消息数据进行内存回收*/
      if (c_p->mbuf || MSO(c_p).overhead >= BIN_VHEAP_SZ(c_p)) {
       /*对发送的消息数据进行内存回收？？？*/
-	 result = erts_gc_after_bif_call(c_p, result, reg, 2);
-	 r(0) = reg[0];
-	 E = c_p->stop;
+        	 result = erts_gc_after_bif_call(c_p, result, reg, 2);
+        	 r(0) = reg[0];
+        	 E = c_p->stop;
      }
      HTOP = HEAP_TOP(c_p);
      FCALLS = c_p->fcalls;
      if (is_value(result)) {
-	 r(0) = result;
-	 CHECK_TERM(r(0));
-	 NextPF(0, next);
+        	 r(0) = result;
+        	 CHECK_TERM(r(0));
+        	 NextPF(0, next);
      } else if (c_p->freason == TRAP) {
-	 SET_CP(c_p, I+1);
-	 SET_I(c_p->i);
-	 SWAPIN;
-	 r(0) = reg[0];
-	 Dispatch();
+        	 SET_CP(c_p, I+1);
+        	 SET_I(c_p->i);
+        	 SWAPIN;
+        	 r(0) = reg[0];
+        	 Dispatch();
      }
      goto find_func_info;
  }
@@ -2833,11 +2835,12 @@ get_map_elements_fail:
 	HTOP = HEAP_TOP(c_p);
 	FCALLS = c_p->fcalls;
 	if (is_value(result)) {
-      /*调用BIF的指令操作完成后会进入emulator_loop状态*/
+      /*完成BIF操作后会保存结果进入emulator_loop状态*/
 	    r(0) = result;
 	    CHECK_TERM(r(0));
 	    NextPF(1, next);
 	} else if (c_p->freason == TRAP) {
+      /*改变scheduler正在执行的指令，并触发TRAP机制*/
 	    SET_CP(c_p, I+2);
 	    SET_I(c_p->i);
 	    SWAPIN;
