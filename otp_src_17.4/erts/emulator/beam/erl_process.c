@@ -10570,11 +10570,14 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 #ifdef BM_COUNTERS
     processes_busy++;
 #endif
+    /*全局变量processes_spawned执行+1操作*/
     BM_COUNT(processes_spawned);
 
+    /*BM_SWAP_TIMER是被用来进行基准测试的*/
     BM_SWAP_TIMER(system,size);
     arg_size = size_object(args);
     BM_SWAP_TIMER(size,system);
+    /*为heap_need增加arg_size（初始化）*/
     heap_need = arg_size;
 
     p->flags = erts_default_process_flags;
