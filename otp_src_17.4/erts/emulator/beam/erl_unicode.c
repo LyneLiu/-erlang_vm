@@ -2005,6 +2005,7 @@ char *erts_convert_filename_to_encoding(Eterm name, char *statbuf, size_t statbu
 	is_list(name) || 
 	(allow_empty && is_nil(name))) {
 	Sint need;
+	/* 确定name需要的数据单元大小 */
 	if ((need = erts_native_filename_need(name,encoding)) < 0) {
 	    return NULL;
 	}

@@ -111,6 +111,7 @@ data_lookup_port(Process *c_p, Eterm id_or_name)
  * erts_internal:port_command/3 is used by the
  * erlang:port_command/2 and erlang:port_command/3
  * BIFs.
+ * port端口进程执行相关操作的BIF实现函数
  */
 
 BIF_RETTYPE erts_internal_port_command_3(BIF_ALIST_3)
@@ -136,7 +137,8 @@ BIF_RETTYPE erts_internal_port_command_3(BIF_ALIST_3)
 	if (!is_nil(l))
 	    BIF_RET(am_badarg);
     }
-
+    
+    /*查找获取port端口进程的相关信息*/
     prt = sig_lookup_port(BIF_P, BIF_ARG_1);
     if (!prt)
 	BIF_RET(am_badarg);
@@ -611,6 +613,8 @@ BIF_RETTYPE port_get_data_1(BIF_ALIST_1)
  * that *err_nump contains the error code; -1 means we don't really know what happened),
  * -3 if argument parsing failed or we are out of ports (*err_nump should contain
  * either BADARG or SYSTEM_LIMIT).
+ * 开启端口
+ * 注：当启动file driver端口的时候，使用本地文件系统，默认使用｛spawn_driver,“efile”｝作为name
  */
 
 static Port *
@@ -776,6 +780,7 @@ open_port(Process* p, Eterm name, Eterm settings, int *err_typep, int *err_nump)
 
     /*
      * Parse the first argument and start the appropriate driver.
+     * 解析第一个参数，并且启动合适的driver
      */
     
     if (is_atom(name) || (i = is_string(name))) {
@@ -795,21 +800,24 @@ open_port(Process* p, Eterm name, Eterm settings, int *err_typep, int *err_nump)
 	}
 	driver = &vanilla_driver;
     } else {   
+    /* 三种基本的选项：｛spawn_driver，Command｝、｛spawn，Command｝、｛fd、In、Out｝ */
 	if (is_not_tuple(name)) {
 	    goto badarg;		/* Not a process or fd port */
 	}
+    /* tuple的第一个数据单元中存放arity */
 	tp = tuple_val(name);
 	arity = *tp++;
 
 	if (arity == make_arityval(0)) {
 	    goto badarg;
 	}
-    
+    /* 当使用本地文件系统时，第一个元素为spawn_driver，第二个元素值为“efile” */
 	if (*tp == am_spawn || *tp == am_spawn_driver || *tp == am_spawn_executable) {	/* A process port */
 	    int encoding;
 	    if (arity != make_arityval(2)) {
 		goto badarg;
 	    }
+        /*将接口的应用程序名称赋值给name*/
 	    name = tp[1];
 	    encoding = erts_get_native_filename_encoding();
 	    /* Do not convert the command to utf-16le yet, do that in win32 specific code */
@@ -817,6 +825,7 @@ open_port(Process* p, Eterm name, Eterm settings, int *err_typep, int *err_nump)
 	    if (encoding == ERL_FILENAME_WIN_WCHAR) {
 		encoding = ERL_FILENAME_UTF8;
 	    }
+        /* 将name的值放入name_buf中*/
 	    if ((name_buf = erts_convert_filename_to_encoding(name, NULL, 0, ERTS_ALC_T_TMP,0,1, encoding, NULL, 0))
 		== NULL) {
 		goto badarg;
@@ -827,7 +836,7 @@ open_port(Process* p, Eterm name, Eterm settings, int *err_typep, int *err_nump)
 	    } else if (*tp == am_spawn_executable) {
 		opts.spawn_type = ERTS_SPAWN_EXECUTABLE;
 	    }
-
+        /* vanilla driver、spawn driver、fd driver均在io.c文件中的erts_init_io函数中完成初始化 */
 	    driver = &spawn_driver;
 	} else if (*tp == am_fd) { /* An fd port */
 	    int n;
@@ -883,7 +892,7 @@ open_port(Process* p, Eterm name, Eterm settings, int *err_typep, int *err_nump)
     
 
     erts_smp_proc_unlock(p, ERTS_PROC_LOCK_MAIN);
-
+    /* 开启driver（io.c中实现） */
     port = erts_open_driver(driver, p->common.id, name_buf, &opts, err_typep, err_nump);
 #ifdef USE_VM_PROBES
     if (port && DTRACE_ENABLED(port_open)) {

@@ -346,7 +346,7 @@ efile_readdir(Efile_error* errInfo,	/* Where to return error codes. */
 	return 1;
     }
 }
-
+/* open file的相关操作实现 */
 int
 efile_openfile(Efile_error* errInfo,	/* Where to return error codes. */
 	       char* name,		/* Name of directory to open. */

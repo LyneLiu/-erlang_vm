@@ -1875,7 +1875,7 @@ static void invoke_readdir(void *data)
     d->result_ok = (d->errInfo.posix_errno == 0);
     DTRACE_INVOKE_RETURN(FILE_READDIR);
 }
-
+/* open the file */
 static void invoke_open(void *data)
 {
     struct t_data *d = (struct t_data *) data;

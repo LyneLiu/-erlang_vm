@@ -70,6 +70,10 @@ const ErlDrvTermData driver_term_nil = (ErlDrvTermData)NIL;
 
 const Port erts_invalid_port = {{ERTS_INVALID_PORT}};
 
+/*
+ * 三种driver类型：平常的port、进程port、fd port
+ * 在erts_init_io中分别进行初始化
+ */
 erts_driver_t vanilla_driver;
 erts_driver_t spawn_driver;
 erts_driver_t fd_driver;
@@ -563,6 +567,12 @@ erts_save_suspend_process_on_port(Port *prt, Process *process)
    (*error_number_ptr must contain either BADARG or SYSTEM_LIMIT).
    The driver start function must obey the same conventions.
 */
+
+/*
+ * 开启一个driver.
+ * 如果操作成功，返回一个非负值；否则，失败的返回值为-1、-2或-3.
+ * 当使用本地文件系统时name为efile.
+ */
 Port *
 erts_open_driver(erts_driver_t* driver,	/* Pointer to driver. */
 		 Eterm pid,		/* Current process. */
@@ -734,6 +744,7 @@ erts_open_driver(erts_driver_t* driver,	/* Pointer to driver. */
     if (error_type) {
 	/*
 	 * Must clean up the port.
+     * 错误的时候一定清除port相关信息
 	 */
 #ifdef ERTS_SMP
 	erts_cancel_smp_ptimer(port->common.u.alive.ptimer);
